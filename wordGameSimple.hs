@@ -14,11 +14,11 @@ winMessage = "Congratulations! You win!"
 prompt = "Enter a word to get its score or q to quit."
 
 type Word = String
+type Issue = String
+type WordMaster = (Word -> Either Issue Int)
 
 numCommonLetters :: Word -> Word -> Int
 numCommonLetters goal guess = length $ filter (`elem` guess) goal
-
-type WordMaster = (Word -> Either String Int)
 
 makeWordMaster :: [Word] -> Word -> WordMaster
 makeWordMaster validGuesses goal guess
@@ -27,20 +27,8 @@ makeWordMaster validGuesses goal guess
     | not $ guess `elem` validGuesses = Left notAWord
     | otherwise                       = Right $ numCommonLetters goal guess
 
-subsets :: [a] -> Int -> [[a]]
-subsets list n
-    | n == 0            = [[]]
-    | (length list) < n = []
-    | otherwise         = 
-        let subsWith = [ head list : s | s <- subsets (tail list) (n - 1) ]
-            subsWithout = subsets (tail list) n
-        in subsWith ++ subsWithout
-
 compatible :: Word -> Int -> Word -> Bool
 compatible guess score goal = (numCommonLetters goal guess) == score
-
-filterSubsets :: Word -> Int -> [Word] -> [String]
-filterSubsets word score subsets = filter (compatible word score) subsets
 
 getValidGuesses :: IO [Word]
 getValidGuesses = do 
@@ -51,11 +39,10 @@ startGame :: [Word] -> Word -> IO ExitCode
 startGame validGuesses word = do
     putStrLn $ "Playing with a " ++ (show $ length word) ++ " letter word."
     let wordMaster = makeWordMaster validGuesses word
-        possibleSubsets = subsets letters (length word)
-    mainLoop wordMaster word possibleSubsets
+    mainLoop wordMaster word
 
-mainLoop :: WordMaster -> Word -> [Word] -> IO ExitCode
-mainLoop master word subsets = do
+mainLoop :: WordMaster -> Word -> IO ExitCode
+mainLoop master word = do
     putStrLn prompt
     input <- getLine
     let guess = map toLower input
@@ -68,23 +55,22 @@ mainLoop master word subsets = do
             putStrLn issue
             if issue == winMessage 
                 then exitSuccess
-                else mainLoop master word subsets
+                else mainLoop master word
         Right common -> do
-            let possibleSubsets = filterSubsets guess common subsets
             putStrLn $ "The word " ++ guess ++ " has " 
                     ++ (show common) ++ " letters in common"
-            mainLoop master word possibleSubsets
+            mainLoop master word 
 
 chooseRandomWord :: [Word] -> StdGen -> Word
 chooseRandomWord validWords gen = 
     let (index, _) = randomR (0, length validWords) gen
-    in validWords !! index
+    in  validWords !! index
 
 filterValidMasterWords :: [Word] -> [Word]
 filterValidMasterWords guesses =
     let uniqueChars = size . fromList
         noDuplicates guess = uniqueChars guess == length guess
-    in filter noDuplicates guesses
+    in  filter noDuplicates guesses
 
 main = do
     gen <- getStdGen
@@ -92,4 +78,3 @@ main = do
     let validMasterWords = filterValidMasterWords validGuesses
         word = chooseRandomWord validMasterWords gen
     startGame validGuesses word
-
